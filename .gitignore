@@ -223,3 +223,4 @@ remindmebotDroplet.cfg
 reddit_post_notifier.cfg
 lastsubmission.txt
 serviceAccountKey.json
+serviceAccountKey-prod.json

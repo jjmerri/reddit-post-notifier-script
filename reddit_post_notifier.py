@@ -6,7 +6,6 @@
 import praw
 import configparser
 import logging
-import json
 import time
 import os
 import smtplib
@@ -54,8 +53,8 @@ LAST_SUBMISSION_FILE = "lastsubmission.txt"
 
 last_submission_lock = Lock()
 
-#subscribed_subs = ["edc_raffle", "KnifeRaffle", "lego_raffles"]
-subscribed_subs = ["raffleTest", "testingground4bots"]
+subscribed_subs = ["edc_raffle", "KnifeRaffle", "lego_raffles"]
+#subscribed_subs = ["raffleTest", "testingground4bots"]
 
 pm_notification_subject = "New Post In {subreddit_name}"
 pm_notification_body = "{permalink}"
@@ -93,13 +92,22 @@ def get_sub_preferences(subreddit_name):
         firebase_uri = FIREBASE_URI,
         subreddit_name = subreddit_name
     ))
-    return json.loads(response.content)
+
+    if response is not None:
+        return response.json()
+    else:
+        return None
+
 
 def get_all_users_preferences():
     response = authed_session.get("{firebase_uri}/notification_preferences/users.json".format(
         firebase_uri=FIREBASE_URI
     ))
-    return json.loads(response.content)
+
+    if response is not None:
+        return response.json()
+    else:
+        return None
 
 def send_dev_pm(subject, body):
     """
