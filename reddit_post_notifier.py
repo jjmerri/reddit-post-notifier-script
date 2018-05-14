@@ -10,6 +10,7 @@ import time
 import os
 import smtplib
 
+from email.mime.text import MIMEText
 from threading import Thread, Lock, Event, current_thread
 from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
@@ -188,38 +189,29 @@ def write_last_submission_time(subreddit_name, time_sec):
 
 def send_email_notifications(subreddit_name, permalink, email_addresses):
     sent_from = 'redditpostnotificationbot@gmail.com'
-    bcc = email_addresses
     subject = 'New Reddit Post Notification'
     body = 'New post in {subreddit_name}.\n\nhttps://www.reddit.com{permalink}'.format(subreddit_name=subreddit_name, permalink=permalink)
 
-    email_text = """\
-From: %s  
-Subject: %s
-
-%s\
-""" % (sent_from, subject, body)
+    msg = MIMEText(body.encode('utf-8'), 'plain', 'UTF-8')
+    msg['Subject'] = subject
 
     server = smtplib.SMTP_SSL(EMAIL_SERVER, 465)
     server.ehlo()
     server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
-    server.sendmail(sent_from, bcc, email_text)
+    server.sendmail(sent_from, email_addresses, msg.as_string())
     server.close()
 
 
 def send_dev_email(subject, body, email_addresses):
     sent_from = 'redditpostnotificationbot@gmail.com'
-    bcc = email_addresses
-    email_text = """\
-From: %s  
-Subject: %s
 
-%s\
-""" % (sent_from, subject, body)
+    msg = MIMEText(body.encode('utf-8'), 'plain', 'UTF-8')
+    msg['Subject'] = subject
 
     server = smtplib.SMTP_SSL(EMAIL_SERVER, 465)
     server.ehlo()
     server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
-    server.sendmail(sent_from, bcc, email_text)
+    server.sendmail(sent_from, email_addresses, msg.as_string())
     server.close()
 
 def create_running_file():
