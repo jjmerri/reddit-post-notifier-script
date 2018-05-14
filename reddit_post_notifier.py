@@ -190,7 +190,8 @@ def write_last_submission_time(subreddit_name, time_sec):
 def send_email_notifications(subreddit_name, permalink, email_addresses):
     sent_from = 'redditpostnotificationbot@gmail.com'
     subject = 'New Reddit Post Notification'
-    body = 'New post in {subreddit_name}.\n\nhttps://www.reddit.com{permalink}'.format(subreddit_name=subreddit_name, permalink=permalink)
+    footer = 'Manage your notification preferences at https://reddit-post-notifier.firebaseapp.com/home'
+    body = 'New post in {subreddit_name}.\n\nhttps://www.reddit.com{permalink}\n\n{footer}'.format(subreddit_name=subreddit_name, permalink=permalink, footer=footer)
 
     msg = MIMEText(body.encode('utf-8'), 'plain', 'UTF-8')
     msg['Subject'] = subject
