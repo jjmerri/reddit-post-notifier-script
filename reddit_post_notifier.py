@@ -119,38 +119,52 @@ def send_dev_pm(subject, body):
     reddit.redditor(DEV_USER_NAME).message(subject, body)
 
 def listenForPosts(subreddit_name):
-    try:
-        calling_thread = current_thread()
-        subreddit = reddit.subreddit(subreddit_name)
-        start_time = last_submission_sec.get(subreddit_name, 0)
-        if start_time == 0:
-            start_time = time.time()
+    calling_thread = current_thread()
+    subreddit = reddit.subreddit(subreddit_name)
+    start_time = last_submission_sec.get(subreddit_name, 0)
+    if start_time == 0:
+        start_time = time.time()
 
-        for submission in subreddit.stream.submissions():
-            if not os.path.isfile(RUNNING_FILE) or submission.created_utc <= start_time or (time.time() - submission.created_utc) > 1800:
-                calling_thread.safe_to_stop = True
-                continue
-            try:
-                calling_thread.safe_to_stop = False
-                send_notifications(submission)
-            except Exception as err:
-                logger.exception("Unknown Exception sending notifications")
-                try:
-                    send_dev_email("Error sending notifications", "Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
-                    send_dev_pm("Unknown Exception sending notifications", "Error: {exception}".format(exception = str(err)))
-                except Exception as err:
-                    logger.exception("Unknown error sending dev pm or email")
-
-            write_last_submission_time(subreddit_name, submission.created_utc)
-            calling_thread.safe_to_stop = True
-
-    except Exception as err:
-        logger.exception("Unknown Exception listening for posts")
+    # retry in case there was a temporary network issue
+    retry_count = 0
+    retry_necessary = True
+    while retry_count < 5 and retry_necessary:
         try:
-            send_dev_email("Unknown Exception listening for posts in {subreddit_name}".format(subreddit_name = subreddit_name), "Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
-            send_dev_pm("Unknown Exception listening for posts", "Error: {exception}".format(exception=str(err)))
+            retry_necessary = False
+
+            for submission in subreddit.stream.submissions():
+                if not os.path.isfile(RUNNING_FILE) or submission.created_utc <= start_time or (time.time() - submission.created_utc) > 1800:
+                    calling_thread.safe_to_stop = True
+                    continue
+                try:
+                    calling_thread.safe_to_stop = False
+                    send_notifications(submission)
+
+                    #reset count on successful call
+                    retry_count = 0
+                except Exception as err:
+                    logger.exception("Unknown Exception sending notifications")
+                    try:
+                        send_dev_email("Error sending notifications", "Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
+                        send_dev_pm("Unknown Exception sending notifications", "Error: {exception}".format(exception = str(err)))
+                    except Exception as err:
+                        logger.exception("Unknown error sending dev pm or email")
+
+                write_last_submission_time(subreddit_name, submission.created_utc)
+                calling_thread.safe_to_stop = True
+
         except Exception as err:
-            logger.exception("Unknown error sending dev pm or email")
+            retry_count += 1
+            retry_necessary = True
+            logger.exception("Unknown Exception listening for posts in {subreddit_name}. retry count: {retry_count}".format(subreddit_name=subreddit_name, retry_count=str(retry_count)))
+            try:
+                send_dev_email("Unknown Exception listening for posts in {subreddit_name}".format(subreddit_name = subreddit_name), "Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
+                send_dev_pm("Unknown Exception listening for posts", "Error: {exception}".format(exception=str(err)))
+            except Exception as err:
+                logger.exception("Unknown error sending dev pm or email")
+
+            calling_thread.safe_to_stop = True
+            time.sleep(60)
 
     calling_thread.safe_to_stop = True
 
@@ -256,8 +270,13 @@ def main():
             t.start()
             listening_threads.append(t)
 
+        dead_thread_email_sent = False
         while os.path.isfile(RUNNING_FILE):
             logger.info("running file present - waiting 60 secs")
+            for thread in listening_threads:
+                if not thread.is_alive() and not dead_thread_email_sent:
+                    send_dev_email("Reddit Post Notifier Thread Dead", "A thread is unexpectetedly dead. Check it out.", [DEV_EMAIL])
+                    dead_thread_email_sent = True;
             time.sleep(60)
 
         # wait till safe to exit program.
