@@ -54,7 +54,7 @@ LAST_SUBMISSION_FILE = "lastsubmission.txt"
 
 last_submission_lock = Lock()
 
-subscribed_subs = ["edc_raffle", "KnifeRaffle", "lego_raffles"]
+subscribed_subs = ["KnifeRaffle", "lego_raffles"]
 #subscribed_subs = ["raffleTest", "testingground4bots"]
 
 pm_notification_subject = "New Post In {subreddit_name}"
