@@ -54,9 +54,6 @@ LAST_SUBMISSION_FILE = "lastsubmission.txt"
 
 last_submission_lock = Lock()
 
-subscribed_subs = ["KnifeRaffle", "lego_raffles", "WatchURaffle", "WatchBreakers", "WatchBreakersNM", "WatchBreakersLounge"]
-#subscribed_subs = ["raffleTest", "testingground4bots"]
-
 pm_notification_subject = "New Post In {subreddit_name}"
 pm_notification_body = "{permalink}"
 last_submission_sec = {}
@@ -127,8 +124,9 @@ def listenForPosts(subreddit_name):
 
     # retry in case there was a temporary network issue
     retry_count = 0
+    max_retires = 5
     retry_necessary = True
-    while retry_count < 5 and retry_necessary:
+    while retry_count < max_retires and retry_necessary:
         try:
             retry_necessary = False
 
@@ -157,11 +155,12 @@ def listenForPosts(subreddit_name):
             retry_count += 1
             retry_necessary = True
             logger.exception("Unknown Exception listening for posts in {subreddit_name}. retry count: {retry_count}".format(subreddit_name=subreddit_name, retry_count=str(retry_count)))
-            try:
-                send_dev_email("Unknown Exception listening for posts in {subreddit_name}".format(subreddit_name = subreddit_name), "Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
-                send_dev_pm("Unknown Exception listening for posts", "Error: {exception}".format(exception=str(err)))
-            except Exception as err:
-                logger.exception("Unknown error sending dev pm or email")
+            if retry_count >= max_retires:
+                try:
+                    send_dev_email("Unknown Exception listening for posts in {subreddit_name}".format(subreddit_name = subreddit_name), "Max Retries Reached!  Error: {exception}".format(exception = str(err)), [DEV_EMAIL])
+                    send_dev_pm("Unknown Exception listening for posts", "Max Retries Reached! Error: {exception}".format(exception=str(err)))
+                except Exception as err:
+                    logger.exception("Unknown error sending dev pm or email")
 
             calling_thread.safe_to_stop = True
             time.sleep(60)
@@ -188,6 +187,19 @@ def load_last_submission_times():
         values = last_submission.split(" ")
         if len(values) == 2:
             last_submission_sec[values[0]] = int(values[1])
+
+def get_subscribed_subs():
+    response = authed_session.get(
+        "{firebase_uri}/supported_subreddits.json".format(
+            firebase_uri=FIREBASE_URI
+        ))
+
+    if response is not None:
+        return response.json()
+    else:
+        send_dev_email("Could Not Load Supported Subreddits", "Try to restart it manually.", [DEV_EMAIL])
+        return []
+
 
 def write_last_submission_time(subreddit_name, time_sec):
     with last_submission_lock:
@@ -261,6 +273,8 @@ def main():
             last_submission_file.close()
 
         load_last_submission_times()
+
+        subscribed_subs = get_subscribed_subs()
 
         listening_threads = []
 
