@@ -127,6 +127,7 @@ def listenForPosts(subreddit_name):
     if start_time == 0:
         start_time = time.time()
 
+    unsent_submissions = set() #used to retry sending notifications if there was a failure
     # retry in case there was a temporary network issue
     retry_count = 0
     max_retires = 5
@@ -141,8 +142,19 @@ def listenForPosts(subreddit_name):
                     calling_thread.safe_to_stop = True
                     continue
                 try:
+                    unsent_submissions.add(submission)
                     calling_thread.safe_to_stop = False
-                    send_notifications(submission)
+
+                    sent_submissions = set()
+
+                    #if there are multiple items in the unsent_submissions this could cause items to get resent
+                    # if a failure occured on any element other than the first because they never get removed
+                    for unsent_submission in unsent_submissions:
+                        send_notifications(unsent_submission)
+                        sent_submissions.add(unsent_submission)
+
+                    for sent_submission in sent_submissions:
+                        unsent_submissions.remove(sent_submission)
 
                     # reset count on successful call
                     retry_count = 0
