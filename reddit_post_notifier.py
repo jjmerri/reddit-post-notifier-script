@@ -123,9 +123,9 @@ def send_dev_pm(subject, body):
 def listenForPosts(subreddit_name):
     calling_thread = current_thread()
     subreddit = reddit.subreddit(subreddit_name)
-    start_time = last_submission_sec.get(subreddit_name, 0)
-    if start_time == 0:
-        start_time = time.time()
+    last_sent_submission_time = last_submission_sec.get(subreddit_name, 0)
+    if last_sent_submission_time == 0:
+        last_sent_submission_time = time.time()
 
     unsent_submissions = set() #used to retry sending notifications if there was a failure
     # retry in case there was a temporary network issue
@@ -137,7 +137,7 @@ def listenForPosts(subreddit_name):
             retry_necessary = False
 
             for submission in subreddit.stream.submissions():
-                if not os.path.isfile(RUNNING_FILE) or submission.created_utc <= start_time or (
+                if not os.path.isfile(RUNNING_FILE) or submission.created_utc <= last_sent_submission_time or (
                     time.time() - submission.created_utc) > 1800:
                     calling_thread.safe_to_stop = True
                     continue
@@ -154,6 +154,9 @@ def listenForPosts(subreddit_name):
                         sent_submissions.add(unsent_submission)
 
                     for sent_submission in sent_submissions:
+                        if last_sent_submission_time < sent_submission.created_utc:
+                            last_sent_submission_time = sent_submission.created_utc
+                            write_last_submission_time(subreddit_name, last_sent_submission_time)
                         unsent_submissions.remove(sent_submission)
 
                     # reset count on successful call
@@ -168,7 +171,6 @@ def listenForPosts(subreddit_name):
                     except Exception as err:
                         logger.exception("Unknown error sending dev pm or email")
 
-                write_last_submission_time(subreddit_name, submission.created_utc)
                 calling_thread.safe_to_stop = True
 
         except Exception as err:
