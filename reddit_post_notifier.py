@@ -52,6 +52,8 @@ DEV_EMAIL = config.get("REDDITPOSTNOTIFIER", "dev_email")
 
 LAST_SUBMISSION_FILE = "lastsubmission.txt"
 
+MAX_EMAIL_RECIPIENTS = 50
+
 last_submission_lock = Lock()
 
 pm_notification_subject = "New Post In {subreddit_name}"
@@ -203,7 +205,8 @@ def send_notifications(submission):
             if preferences[user]['emailNotification']:
                 emails.append(get_user_email(user))
         if emails:
-            send_email_notifications(submission.subreddit, submission.permalink, emails)
+            for emailChunks in list(chunks(emails, MAX_EMAIL_RECIPIENTS)):
+                send_email_notifications(submission.subreddit, submission.permalink, emailChunks)
 
 
 def get_user_email(user):
@@ -274,6 +277,10 @@ def send_dev_email(subject, body, email_addresses):
     server.sendmail(sent_from, email_addresses, msg.as_string())
     server.close()
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 def create_running_file():
     running_file = open(RUNNING_FILE, "w")
